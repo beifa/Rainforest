@@ -1,6 +1,3 @@
-def name():
-    print('hello world!')
-
 def test():
     print('new method add')
 
