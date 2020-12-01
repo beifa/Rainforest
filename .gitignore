@@ -140,12 +140,13 @@ cython_debug/
 /input
 /test
 /notebook_private
+# /notebook
 /submit
 ###
 *.pkl
-*.npy
+# *.npy
 *.txt
 *.csv
 *.pth
 *.md
-*.flac
+# *.flac
