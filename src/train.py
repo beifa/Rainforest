@@ -1,4 +1,5 @@
 import os
+import time
 import random
 import argparse
 import pandas as pd
@@ -24,6 +25,7 @@ PATH_CSV = '../input'
 PATH_NPY = '../input/train_npy'
 LABEL = '../input/label.csv'
 PATH_MODEL = '../models'
+PATH_LOGS = '../logs'
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 def set_seed(seed=0):
@@ -52,7 +54,7 @@ def set_seed(seed=0):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--kernel', type=str, required=True, help = 'name_model_size_epoch_typefold_scheduler_mixadd')
-    parser.add_argument('--fold-type', type=str, required=True, help = 'version fold')
+    parser.add_argument('--fold_type', type=str, required=True, help = 'version fold')
     parser.add_argument('--DEBUG', action='store_true')
     parser.add_argument('--epoch', type=int, default = 30)
     parser.add_argument('--n_workers', type=int, default = 4)
@@ -141,8 +143,8 @@ def showtime(model, f: int, df: pd.DataFrame, label:pd.DataFrame, scaler):
 
     # kernel_type = type(model).__name__
     model = model.to(device)    
-    loss_f = nn.BCEWithLogitsLoss(reduction="mean")
-    optimizer = optim.Adam(model.parameters())
+    loss_f = nn.BCEWithLogitsLoss() # mean
+    optimizer = optim.Adam(model.parameters(), lr = 3e-5)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 
 
@@ -152,8 +154,12 @@ def showtime(model, f: int, df: pd.DataFrame, label:pd.DataFrame, scaler):
         
         train_loss = train(model, tr_loader, loss_f, optimizer, scaler)
         val_loss, auc, lraps, score_loss = val_train(model, vl_loader, loss_f)
-        print(f'Result epoch {ep+1}, Auc: {auc}, LRAPS: {lraps}, lwlrap: {score_loss} >> train_loss: {np.mean(train_loss)}, val_loss: {val_loss}')
-        
+
+        log = time.ctime() + ' ' + f'Fold {f}, Epoch {ep}, lr: {optimizer.param_groups[0]["lr"]:.7f}, Auc: {auc}, LRAPS: {lraps}, lwlrap: {score_loss} >> train_loss: {np.mean(train_loss)}, val_loss: {val_loss}'
+        print(log)        
+        with open(os.path.join(PATH_LOGS, f'log_{args.kernel}.txt'), 'a') as file:
+            file.write(log + '\n')
+
         if auc > auc_max:
             print(f'auc_max: {auc} --> {auc_max}). Saving model ...')
             torch.save(model.state_dict(), os.path.join(PATH_MODEL, f'{args.kernel}_best_fold_{f}.pth'))
