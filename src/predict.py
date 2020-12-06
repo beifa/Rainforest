@@ -43,7 +43,7 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=1, num_workers=4)
 
     # loads model
-    for f in range(1):
+    for f in range(5):
         print('Fold: ', f + 1)
 
         if args.model_type == 'best':
