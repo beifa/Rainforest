@@ -15,7 +15,7 @@ from sklearn.metrics import label_ranking_average_precision_score
 
 from model import Res50
 from dataset import RFDataset
-from utils import lwlrap
+from utils import lwlrap, visual_train_result
 
 from torch.cuda import amp
 
@@ -60,8 +60,7 @@ def parse_args():
     parser.add_argument('--n_workers', type=int, default = 4)
     parser.add_argument('--batch', type=int, default = 14)
     parser.add_argument('--size', type=int, default = 128) 
-    parser.add_argument('--scaler', action='store_false', help = 'AUTOMATIC MIXED PRECISION') 
-      
+    parser.add_argument('--scaler', action='store_false', help = 'AUTOMATIC MIXED PRECISION')        
     args, _ = parser.parse_known_args()
     return args
 
@@ -69,6 +68,8 @@ def  train(model, loader, loss_f, optimizer, scaler):
     model.train()
     bar = tqdm(loader)
     train_loss = []
+    train_target = []
+    train_prob = []
     for (img, target) in bar:
         optimizer.zero_grad()
         if args.scaler:
@@ -86,8 +87,16 @@ def  train(model, loader, loss_f, optimizer, scaler):
             pred = loss_f(y_, target)
             pred.backward()
             optimizer.step()
+        
         train_loss.append(pred.detach().cpu().numpy())
-    return train_loss
+        prob = nn.Sigmoid()(y_)        
+        train_prob.append(prob.detach().cpu())
+        train_target.append(target.detach().cpu())            
+    
+    probs =  torch.cat(train_prob).numpy()
+    target = torch.cat(train_target).numpy()   
+    auc = roc_auc_score(target, probs)
+    return train_loss, auc
 
 
 def val_train(model, loader, loss_f):
@@ -122,11 +131,13 @@ def val_train(model, loader, loss_f):
 
 
 def showtime(model, f: int, df: pd.DataFrame, label:pd.DataFrame, scaler):
+    start = time.ctime().replace('  ', ' ').replace(' ', '_')    
     print('Fold: ', f)
     if args.DEBUG:
         print('DEBUG....................')
-        args.epoch = 1
-        args.size = 128        
+        start = 'DEBUG_' + start
+        args.epoch = 5
+        args.size = 64        
         print(args)
         tr_data = df[df.sfold !=f].sample(200).reset_index(drop=True)
         vl_data = df[df.sfold ==f].sample(200).reset_index(drop=True)
@@ -148,19 +159,20 @@ def showtime(model, f: int, df: pd.DataFrame, label:pd.DataFrame, scaler):
     pos_weights = pos_weights * 24    
     loss_f = nn.BCEWithLogitsLoss(reduction="mean", pos_weight=pos_weights).to(device)       
     optimizer = optim.Adam(model.parameters(), lr = 3e-5)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=3, verbose=True)
 
 
     auc_max = 0
     for ep in range(args.epoch):
         print('Epoch: ', ep + 1)
         
-        train_loss = train(model, tr_loader, loss_f, optimizer, scaler)
+        train_loss, auc_train = train(model, tr_loader, loss_f, optimizer, scaler)
         val_loss, auc, lraps, score_loss = val_train(model, vl_loader, loss_f)
 
-        log = time.ctime() + ' ' + f'Fold {f}, Epoch {ep}, lr: {optimizer.param_groups[0]["lr"]:.7f}, Auc: {auc}, LRAPS: {lraps}, lwlrap: {score_loss} >> train_loss: {np.mean(train_loss)}, val_loss: {val_loss}'
-        print(log)        
-        with open(os.path.join(PATH_LOGS, f'log_{args.kernel}.txt'), 'a') as file:
+        log = time.ctime().replace('  ', ' ').replace(' ', '_') + ',' + f'Fold:{f},Epoch:{ep},lr:{optimizer.param_groups[0]["lr"]:.5f},Auc_val:{auc:.5f},Auc_train:{auc_train:.5f},LRAPS:{lraps:.5f},lwlrap:{score_loss:.5f},train_loss:{np.mean(train_loss):.5f},val_loss:{val_loss:.5f}'
+        print(log)
+        to_log = start + '.' + f'log_{args.kernel}.txt'          
+        with open(os.path.join(PATH_LOGS, to_log), 'a') as file:
             file.write(log + '\n')
 
         if auc > auc_max:
@@ -168,7 +180,8 @@ def showtime(model, f: int, df: pd.DataFrame, label:pd.DataFrame, scaler):
             torch.save(model.state_dict(), os.path.join(PATH_MODEL, f'{args.kernel}_best_fold_{f}.pth'))
             auc_max = auc       
         
-        scheduler.step(val_loss)    
+        scheduler.step(val_loss) 
+    visual_train_result(to_log)   
     torch.save(model.state_dict(), os.path.join(PATH_MODEL, f'{args.kernel}_final_fold_{f}.pth'))
     torch.cuda.empty_cache()   
 
