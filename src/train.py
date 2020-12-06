@@ -142,8 +142,11 @@ def showtime(model, f: int, df: pd.DataFrame, label:pd.DataFrame, scaler):
     vl_loader = DataLoader(vl_dataset, batch_size=args.batch, num_workers=args.n_workers)    
 
     # kernel_type = type(model).__name__
-    model = model.to(device)    
-    loss_f = nn.BCEWithLogitsLoss() # mean
+    model = model.to(device)
+    # need addd pos_weight 
+    pos_weights = torch.ones(24)
+    pos_weights = pos_weights * 24    
+    loss_f = nn.BCEWithLogitsLoss(reduction="mean", pos_weight=pos_weights).to(device)       
     optimizer = optim.Adam(model.parameters(), lr = 3e-5)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 
