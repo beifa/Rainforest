@@ -140,6 +140,7 @@ cython_debug/
 /input
 /test
 /notebook_private
+/logs
 # /notebook
 /submit
 ###
