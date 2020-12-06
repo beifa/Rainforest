@@ -1,4 +1,7 @@
+import os
+import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 def mono_to_color(X: np.ndarray,
                   mean=None,
@@ -69,3 +72,39 @@ def lwlrap(truth, scores):
     per_class_lwlrap = (np.sum(precisions_for_samples_by_classes, axis=0) /
                         np.maximum(1, labels_per_class))
     return per_class_lwlrap, weight_per_class
+
+
+def visual_train_result(log)->None:
+    """
+    take log file after train, *.txt
+    save image or plot
+    """
+    names = ['times', 'folds', 'epoch', 'lr', 'auc_val','auc_train', 'LRAPS', 'lwlrap', 'train_loss', 'val_loss']
+    df = pd.read_csv(os.path.join('../logs/', log), header = None, names = names)
+    for col in names[1:]:
+        df[col] = df[col].str.split(':', n = 1,expand =True)[1].astype('float')
+        
+    data, title, _ = os.path.basename(log).split('.')
+
+    # plot
+    plt.figure(figsize= (15, 5))
+    plt.plot(df.epoch, df.auc_train, '-o', label = 'Train AUC', color = '#11ad77')
+    plt.plot(df.epoch, df.auc_val, '-o', label = 'Val AUC', color = '#780b0b')
+    x = np.argmax(df.auc_val)
+    y = np.max(df.auc_val)
+    plt.scatter(x, y, s = 200, color = '#780b0b')
+    plt.text(x-0.20, y-0.08, 'max_auc\n%.3f' % y, size = 14)
+    plt.ylabel('AUC',size=14)
+    plt.xlabel('Epoch',size=14)
+    plt.legend(loc=2)
+    plt2 = plt.gca().twinx()
+    plt2.plot(df.epoch, df.train_loss, '-o', label = 'Train_loss', color = '#8cc2af')
+    plt2.plot(df.epoch, df.val_loss, '-o', label = 'Val_loss', color = '#db1819')
+    x = np.argmin(df.val_loss)
+    y = np.min(df.val_loss)
+    plt2.scatter(x, y, s = 200, color = '#db1819')
+    plt2.text(x-0.20, y-0.10, 'min_loss\n%.3f' % y, size = 14)
+    plt.ylabel('Loss',size=14)
+    plt.legend(loc=3)
+    plt.title(title.replace('log_', ''), size = 18)
+    plt.savefig(os.path.join('../logs/', f'{data}_{title}.png')) # before show
