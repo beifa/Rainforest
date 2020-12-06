@@ -52,6 +52,7 @@ def set_seed(seed=0):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--kernel', type=str, required=True, help = 'name_model_size_epoch_typefold_scheduler_mixadd')
+    parser.add_argument('--fold-type', type=str, required=True, help = 'version fold')
     parser.add_argument('--DEBUG', action='store_true')
     parser.add_argument('--epoch', type=int, default = 30)
     parser.add_argument('--n_workers', type=int, default = 4)
@@ -155,11 +156,11 @@ def showtime(model, f: int, df: pd.DataFrame, label:pd.DataFrame, scaler):
         
         if auc > auc_max:
             print(f'auc_max: {auc} --> {auc_max}). Saving model ...')
-            torch.save(model.state_dict(), os.path.join(PATH_MODEL, f'{args.kernel}_best_fold.pth'))
+            torch.save(model.state_dict(), os.path.join(PATH_MODEL, f'{args.kernel}_best_fold_{f}.pth'))
             auc_max = auc       
         
         scheduler.step(val_loss)    
-    torch.save(model.state_dict(), os.path.join(PATH_MODEL, f'{args.kernel}_final_fold.pth'))
+    torch.save(model.state_dict(), os.path.join(PATH_MODEL, f'{args.kernel}_final_fold_{f}.pth'))
     torch.cuda.empty_cache()   
 
 if __name__ == "__main__":
