@@ -39,6 +39,11 @@ def main():
     sub2 = sub2.set_index('recording_id')
     sub2 *= 0
 
+    # sub3 = pd.read_csv(os.path.join(PATH_CSV, 'sample_submission.csv'))
+    # sub3 = sub3.set_index('recording_id')
+    # sub3 *= 0
+
+
     test_dataset = RFDataset_test(size = 128)
     test_loader = DataLoader(test_dataset, batch_size=1, num_workers=4)
 
@@ -72,8 +77,10 @@ def main():
                 
                 sub.loc[name[0]] += pred 
                 sub2.loc[name[0]] += pred2 
+                # sub3.loc[name[0]] += pred 
     # save
-    if args.fold_type == 'gfold':        
+    if args.fold_type == 'gfold':
+        print('Correct: ', args.fold_type)        
         sub = sub.reset_index()        
         sub2 = sub2.reset_index()
     else:
@@ -81,9 +88,11 @@ def main():
         sub = sub.reset_index()
         sub2.iloc[:, 1:] /= 5
         sub2 = sub2.reset_index()
+        # sub3 = sub3.reset_index()
 
     sub.to_csv(os.path.join(PATH_SUBMIT, f'sub_{args.kernel}_{args.model_type}_{args.fold_type}.csv'), index=False)
-    sub2.to_csv(os.path.join(PATH_SUBMIT, f'sub2_{args.kernel}_{args.model_type}_{args.fold_type}.csv'), index=False)    
+    sub2.to_csv(os.path.join(PATH_SUBMIT, f'sub2_{args.kernel}_{args.model_type}_{args.fold_type}.csv'), index=False)
+    # sub3.to_csv(os.path.join(PATH_SUBMIT, f'sub3_{args.kernel}_{args.model_type}_{args.fold_type}.csv'), index=False)     
 
 
 
