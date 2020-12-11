@@ -142,8 +142,8 @@ def showtime(model, f: int, df: pd.DataFrame, label:pd.DataFrame, scaler):
         tr_data = df[df.sfold !=f].sample(200).reset_index(drop=True)
         vl_data = df[df.sfold ==f].sample(200).reset_index(drop=True)
     else:
-        tr_data = df[df.sfold !=f].reset_index(drop=True)
-        vl_data = df[df.sfold ==f].reset_index(drop=True)
+        tr_data = df[df[args.fold_type] != f].reset_index(drop=True)
+        vl_data = df[df[args.fold_type] == f].reset_index(drop=True)
     
     tr_dataset = RFDataset(PATH_NPY, label.loc[tr_data.index], size = args.size)
     vl_dataset = RFDataset(PATH_NPY, label.loc[vl_data.index], size = args.size)
@@ -158,18 +158,19 @@ def showtime(model, f: int, df: pd.DataFrame, label:pd.DataFrame, scaler):
     pos_weights = torch.ones(24)
     pos_weights = pos_weights * 24    
     loss_f = nn.BCEWithLogitsLoss(reduction="mean", pos_weight=pos_weights).to(device)       
-    optimizer = optim.Adam(model.parameters(), lr = 3e-5)
+    optimizer = optim.Adam(model.parameters())#, lr = 3e-5)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=3, verbose=True)
 
 
     auc_max = 0
+    
     for ep in range(args.epoch):
         print('Epoch: ', ep + 1)
         
         train_loss, auc_train = train(model, tr_loader, loss_f, optimizer, scaler)
         val_loss, auc, lraps, score_loss = val_train(model, vl_loader, loss_f)
 
-        log = time.ctime().replace('  ', ' ').replace(' ', '_') + ',' + f'Fold:{f},Epoch:{ep},lr:{optimizer.param_groups[0]["lr"]:.5f},Auc_val:{auc:.5f},Auc_train:{auc_train:.5f},LRAPS:{lraps:.5f},lwlrap:{score_loss:.5f},train_loss:{np.mean(train_loss):.5f},val_loss:{val_loss:.5f}'
+        log = time.ctime().replace('  ', ' ').replace(' ', '_') + ',' + f'Fold:{f},Epoch:{ep},lr:{optimizer.param_groups[0]["lr"]:.7f},Auc_val:{auc:.5f},Auc_train:{auc_train:.5f},LRAPS:{lraps:.5f},lwlrap:{score_loss:.5f},train_loss:{np.mean(train_loss):.5f},val_loss:{val_loss:.5f}'
         print(log)
         to_log = start + '.' + f'log_{args.kernel}.txt'          
         with open(os.path.join(PATH_LOGS, to_log), 'a') as file:
@@ -208,5 +209,5 @@ if __name__ == "__main__":
     args = parse_args()
     scaler = amp.GradScaler()  
     model = Res50()
-    fold = 0
+    fold = 4
     showtime(model, fold, df, label, scaler)
