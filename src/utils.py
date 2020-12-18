@@ -2,6 +2,8 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import torch.nn as nn
+
 
 def mono_to_color(X: np.ndarray,
                   mean=None,
@@ -108,3 +110,22 @@ def visual_train_result(log)->None:
     plt.legend(loc=3)
     plt.title(title.replace('log_', ''), size = 18)
     plt.savefig(os.path.join('../logs/', f'{data}_{title}.png')) # before show
+
+class FocalLoss(nn.Module):
+    def __init__(self, gamma):
+        super().__init__()
+        self.gamma = gamma
+        
+    def forward(self, input, target):
+        if not (target.size() == input.size()):
+            raise ValueError("Target size ({}) must be the same as input size ({})"
+                             .format(target.size(), input.size()))
+
+        max_val = (-input).clamp(min=0)
+        loss = input - input * target + max_val + \
+            ((-max_val).exp() + (-input - max_val).exp()).log()
+
+        invprobs = F.logsigmoid(-input * (target * 2.0 - 1.0))
+        loss = (invprobs * self.gamma).exp() * loss
+        
+        return loss.mean()
