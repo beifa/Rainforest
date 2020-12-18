@@ -39,11 +39,6 @@ def main():
     sub2 = sub2.set_index('recording_id')
     sub2 *= 0
 
-    # sub3 = pd.read_csv(os.path.join(PATH_CSV, 'sample_submission.csv'))
-    # sub3 = sub3.set_index('recording_id')
-    # sub3 *= 0
-
-
     test_dataset = RFDataset_test(size = 128)
     test_loader = DataLoader(test_dataset, batch_size=1, num_workers=4)
 
@@ -65,37 +60,36 @@ def main():
         # models.append(model)
         with torch.no_grad():
             bar = tqdm(test_loader)
-            for (img, name) in bar:
-                img = img.to(device)
-                y_ = model(img)
-                #
-                prob2 = torch.max(nn.Sigmoid()(y_), dim=0)[0]
-                pred2  =prob2.detach().cpu().numpy()
-                #
-                prob = torch.max(y_, dim=0)[0]
-                pred  =prob.detach().cpu().numpy() 
-                
-                sub.loc[name[0]] += pred 
-                sub2.loc[name[0]] += pred2 
-                # sub3.loc[name[0]] += pred 
+            for (img, name) in bar: # name (name, )
+                img = img.to(device) 
+                for i in range(img.shape[1]):
+
+                    y_ = model(torch.unsqueeze(img[0][i], 0))   # add dimension bevos=use no banch                        
+                    
+                    prob2 = torch.max(nn.Sigmoid()(y_), dim=0)[0]
+                    pred2  =prob2.detach().cpu().numpy()
+                    #
+                    prob = torch.max(y_, dim=0)[0]
+                    pred  =prob.detach().cpu().numpy()         
+                    
+                    sub.loc[name[0]] += pred 
+                    sub2.loc[name[0]] += pred2    
     # save
-    if args.fold_type == 'gfold':
-        print('Correct: ', args.fold_type)        
-        sub = sub.reset_index()        
-        sub2 = sub2.reset_index()
-    else:
-        sub.iloc[:, 1:] /= 5
-        sub = sub.reset_index()
-        sub2.iloc[:, 1:] /= 5
-        sub2 = sub2.reset_index()
-        # sub3 = sub3.reset_index()
+    # if args.fold_type == 'gfold':
+    #     print('Correct: ', args.fold_type)        
+    #     sub = sub.reset_index()        
+    #     sub2 = sub2.reset_index()
+    # else:
+    #     sub.iloc[:, 1:] /= 5
+    #     sub = sub.reset_index()
+    #     sub2.iloc[:, 1:] /= 5
+    #     sub2 = sub2.reset_index()
+    sub = sub.reset_index()        
+    sub2 = sub2.reset_index()        
 
     sub.to_csv(os.path.join(PATH_SUBMIT, f'sub_{args.kernel}_{args.model_type}_{args.fold_type}.csv'), index=False)
     sub2.to_csv(os.path.join(PATH_SUBMIT, f'sub2_{args.kernel}_{args.model_type}_{args.fold_type}.csv'), index=False)
-    # sub3.to_csv(os.path.join(PATH_SUBMIT, f'sub3_{args.kernel}_{args.model_type}_{args.fold_type}.csv'), index=False)     
-
-
-
+    
 if __name__ == "__main__":
     args = parse_args()
     MODEL = Res50
