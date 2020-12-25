@@ -13,7 +13,7 @@ from tqdm import tqdm
 from sklearn.metrics import roc_auc_score, average_precision_score
 from sklearn.metrics import label_ranking_average_precision_score
 
-from model import Res50
+from model import Res50, EffB3
 from dataset import RFDataset
 from utils import lwlrap, visual_train_result, FocalLoss
 
@@ -209,24 +209,36 @@ def showtime(model, f: int, df: pd.DataFrame, label:pd.DataFrame, scaler):
 if __name__ == "__main__":
 
     tp = pd.read_csv(os.path.join(PATH_CSV, 'train_tp.csv'))
-    fp = pd.read_csv(os.path.join(PATH_CSV, 'train_fp.csv'))
-    df = pd.concat((tp, fp))
-    df = df.sample(frac = 1).reset_index(drop=True)
+    # fp = pd.read_csv(os.path.join(PATH_CSV, 'train_fp.csv'))
+    # df = pd.concat((tp, fp))
+    df = tp.sample(frac = 1).reset_index(drop=True)
     
     from sklearn.model_selection import StratifiedKFold
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=13)
     
     df['kfold'] = -1
-    for f, (tr, vl) in enumerate(skf.split(df, df.species_id)):
+    for f, (tr, vl) in enumerate(skf.split(df, df.recording_id)):
         print(len(tr), len(vl))
         df.loc[vl, 'kfold'] = f  
 
     # df = pd.read_csv(os.path.join(PATH_CSV, 'gfold_sfold_df.csv')) # two way folds   
-    label = pd.read_csv(os.path.join(PATH_CSV, 'label.csv')) # two way folds
+    # label = pd.read_csv(os.path.join(PATH_CSV, 'label.csv')) # two way folds
     # label = pd.read_csv(os.path.join(PATH_CSV, 'label_tp.csv'))
+    label = tp[['recording_id','species_id']].copy()
+
+    for i in range(24):
+        label['s'+str(i)] = 0
+        label.loc[label.species_id==i,'s'+str(i)] = 1
+        
+    label.drop('species_id', axis = 1, inplace = True)
+    label = label.reset_index(drop=True)
+    label.to_csv('../input/label.csv', index =False)
+    print('Correct !')
+
     set_seed(SEED)
     args = parse_args()
     scaler = amp.GradScaler()  
-    model = Res50()
+    # model = Res50()
+    model = EffB3()
     fold = 0
     showtime(model, fold, df, label, scaler)
