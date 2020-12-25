@@ -26,7 +26,7 @@ class RFDataset(Dataset):
             pass
         img = mono_to_color(img)       
         if self.size is not None:
-            img = cv2.resize(img, (550, self.size))
+            img = cv2.resize(img, (563, self.size))
             
         img = img / 255.0
         img = img.transpose(2, 0, 1).astype(np.float32)        
@@ -60,7 +60,7 @@ class RFDataset_test(Dataset):
         for i in range(len(img)):
             image = mono_to_color(img[i]) 
             if self.size is not None:
-                image = cv2.resize(image, (550, self.size))
+                image = cv2.resize(image, (563, self.size))
             image = image / 255.0
             image = image.transpose(2, 0, 1).astype(np.float32) 
             temp.append(image)        
