@@ -22,7 +22,8 @@ from torch.cuda import amp
 
 SEED = 13
 PATH_CSV = '../input'
-PATH_NPY = '../input/train_npy'
+PATH_NPY = ''
+PATH_ZIP = '../input/train_img.zip'
 LABEL = '../input/label.csv'
 PATH_MODEL = '../models'
 PATH_LOGS = '../logs'
@@ -146,26 +147,34 @@ def val_train(model, loader, loss_f):
     return val_loss, auc, lraps, score_loss, pr, pr_m, sum(correct)
 
 
-def showtime(model, f: int, df: pd.DataFrame, label:pd.DataFrame, scaler):
+def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
     start = time.ctime().replace('  ', ' ').replace(' ', '_')    
     print('Fold: ', f)
-    tr_idx = df[args.fold_type] != f
-    vl_idx = df[args.fold_type] == f
+    # tr_idx = df[args.fold_type] != f
+    # vl_idx = df[args.fold_type] == f
 
-    if args.DEBUG:
-        print('DEBUG....................')
-        start = 'DEBUG_' + start
-        args.epoch = 1               
-        print(args)        
-        tr_label = label.loc[tr_idx].sample(200).reset_index(drop=True)
-        vl_label = label.loc[vl_idx].sample(200).reset_index(drop=True)
-    else:
-        tr_label = label.loc[tr_idx].reset_index(drop=True)
-        vl_label = label.loc[vl_idx].reset_index(drop=True)
-    print(tr_label.shape, vl_label.shape)
-    tr_dataset = RFDataset(PATH_NPY, tr_label, size = args.size)
-    vl_dataset = RFDataset(PATH_NPY, vl_label, size = args.size)
+    # if args.DEBUG:
+    #     print('DEBUG....................')
+    #     start = 'DEBUG_' + start
+    #     args.epoch = 1               
+    #     print(args)        
+    #     tr_label = label.loc[tr_idx].sample(200).reset_index(drop=True)
+    #     vl_label = label.loc[vl_idx].sample(200).reset_index(drop=True)
+    # else:
+    #     tr_label = label.loc[tr_idx].reset_index(drop=True)
+    #     vl_label = label.loc[vl_idx].reset_index(drop=True)
+    # print(tr_label.shape, vl_label.shape)
+    # tr_dataset = RFDataset(PATH_NPY, tr_label, size = args.size)
+    # vl_dataset = RFDataset(PATH_NPY, vl_label, size = args.size)
+
+
+    tr = np.take(data.files[1:], tr_idx[f])
+    vl = np.take(data.files[1:], vl_idx[f])
+    print(tr.shape, vl.shape)
     
+    tr_dataset = RFDataset(tr, size = None)
+    vl_dataset = RFDataset(vl, size = None)
+
     tr_loader = DataLoader(tr_dataset, batch_size=args.batch, num_workers=args.n_workers,
                            sampler=RandomSampler(tr_dataset))
     vl_loader = DataLoader(vl_dataset, batch_size=args.batch, num_workers=args.n_workers)    
@@ -206,39 +215,31 @@ def showtime(model, f: int, df: pd.DataFrame, label:pd.DataFrame, scaler):
     torch.save(model.state_dict(), os.path.join(PATH_MODEL, f'{args.kernel}_final_fold_{f}.pth'))
     torch.cuda.empty_cache()   
 
-if __name__ == "__main__":
+if __name__ == "__main__":  
 
-    tp = pd.read_csv(os.path.join(PATH_CSV, 'train_tp.csv'))
-    # fp = pd.read_csv(os.path.join(PATH_CSV, 'train_fp.csv'))
-    # df = pd.concat((tp, fp))
-    df = tp.sample(frac = 1).reset_index(drop=True)
-    
+    lab = []
+    tr_idx = []
+    vl_idx = []
+    data = np.load(PATH_ZIP)
+    for i in data.files[1:]:
+        sci_id = i.split('.')[1]
+        lab.append(sci_id)   
     from sklearn.model_selection import StratifiedKFold
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=13)
-    
-    df['kfold'] = -1
-    for f, (tr, vl) in enumerate(skf.split(df, df.recording_id)):
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
+    for f, (tr, vl) in enumerate(skf.split(data.files[1:], lab)):
         print(len(tr), len(vl))
-        df.loc[vl, 'kfold'] = f  
-
-    # df = pd.read_csv(os.path.join(PATH_CSV, 'gfold_sfold_df.csv')) # two way folds   
-    # label = pd.read_csv(os.path.join(PATH_CSV, 'label.csv')) # two way folds
-    # label = pd.read_csv(os.path.join(PATH_CSV, 'label_tp.csv'))
-    label = tp[['recording_id','species_id']].copy()
-
-    for i in range(24):
-        label['s'+str(i)] = 0
-        label.loc[label.species_id==i,'s'+str(i)] = 1
-        
-    label.drop('species_id', axis = 1, inplace = True)
-    label = label.reset_index(drop=True)
-    label.to_csv('../input/label.csv', index =False)
+        tr_idx.append(tr)
+        vl_idx.append(vl)   
     print('Correct !')
 
     set_seed(SEED)
     args = parse_args()
     scaler = amp.GradScaler()  
     # model = Res50()
+
+    # PATH_NPY = '../input/train_img_(380, 1126)_npy'
+    # dataset.py '../input/test_npy_224/*.npy'
+
     model = EffB3()
-    fold = 0
-    showtime(model, fold, df, label, scaler)
+    fold = 4
+    showtime(model, fold, data, tr_idx, vl_idx, scaler)
