@@ -32,7 +32,7 @@ class EffB3(nn.Module):
 
   def __init__(self):
     super(EffB3, self).__init__()
-    self.model = geffnet.create_model('efficientnet_b3', pretrained=True) 
+    self.model = geffnet.create_model('tf_efficientnet_lite4', pretrained=True) 
     in_ch = self.model.classifier.in_features #1536
     self.myfc = nn.Sequential(nn.Linear(in_ch, 24))
     self.model.classifier = nn.Identity()   
