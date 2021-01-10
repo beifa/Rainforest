@@ -1,4 +1,5 @@
 import os
+import glob
 import argparse
 import pandas as pd
 import numpy as np
@@ -16,6 +17,7 @@ LABEL = '../input/label.csv'
 PATH_MODEL = '../models'
 PATH_SUBMIT = '../submission'
 PATH_CSV = '../input'
+# PATH_TEST = glob.glob( '../input/test_224_npy_v1/*.npy')
 
 
 def parse_args():
@@ -40,8 +42,8 @@ def main():
     sub2 = sub2.set_index('recording_id')
     sub2 *= 0
 
-    test_dataset = RFDataset_test(size = args.size)
-    test_loader = DataLoader(test_dataset, batch_size=1, num_workers=4)
+    test_dataset = RFDataset_test(None)
+    test_loader = DataLoader(test_dataset, batch_size=1, num_workers=1)
 
     # loads model
     for f in range(5):
@@ -92,6 +94,7 @@ def main():
     sub2.to_csv(os.path.join(PATH_SUBMIT, f'sub2_{args.kernel}_{args.model_type}_{args.fold_type}.csv'), index=False)
     
 if __name__ == "__main__":
+
     args = parse_args()
     # MODEL = Res50
     MODEL = EffB3
