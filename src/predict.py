@@ -17,13 +17,13 @@ LABEL = '../input/label.csv'
 PATH_MODEL = '../models'
 PATH_SUBMIT = '../submission'
 PATH_CSV = '../input'
-# PATH_TEST = glob.glob( '../input/test_224_npy_v1/*.npy')
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--kernel', type=str, required=True, help = 'name_model_size_epoch_typefold_scheduler_mixadd')
     parser.add_argument('--fold_type', type=str, required=True, help = 'version fold')
+    parser.add_argument('--name_data', type=str, required=True, help = 'version data set [sr32power2mel384_111, sr48power2mel260]')
     parser.add_argument('--model_type', type=str, required=True, help = 'Model type [best, final]')
     parser.add_argument('--size', type=int, default = 128) 
     args, _ = parser.parse_known_args()
@@ -42,7 +42,7 @@ def main():
     sub2 = sub2.set_index('recording_id')
     sub2 *= 0
 
-    test_dataset = RFDataset_test(None)
+    test_dataset = RFDataset_test(args.name_data, None)
     test_loader = DataLoader(test_dataset, batch_size=1, num_workers=1)
 
     # loads model
@@ -95,8 +95,7 @@ def main():
     
 if __name__ == "__main__":
 
-    args = parse_args()
-    # MODEL = Res50
+    args = parse_args()   
     MODEL = EffB3
     device = torch.device('cuda')
     main()
