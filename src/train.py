@@ -23,7 +23,6 @@ from torch.cuda import amp
 SEED = 13
 PATH_CSV = '../input'
 PATH_NPY = ''
-PATH_ZIP = '../input/train_img.zip'
 LABEL = '../input/label.csv'
 PATH_MODEL = '../models'
 PATH_LOGS = '../logs'
@@ -170,10 +169,14 @@ def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
 
     tr = np.take(data.files[1:], tr_idx[f])
     vl = np.take(data.files[1:], vl_idx[f])
+
+    # tr = np.take(data.file_name.values, tr_idx[f])
+    # vl = np.take(data.file_name.values, vl_idx[f]) 
+
     print(tr.shape, vl.shape)
     
-    tr_dataset = RFDataset(tr, size = None)
-    vl_dataset = RFDataset(vl, size = None)
+    tr_dataset = RFDataset(tr, PATH_ZIP, size = None)
+    vl_dataset = RFDataset(vl, PATH_ZIP, size = None)
 
     tr_loader = DataLoader(tr_dataset, batch_size=args.batch, num_workers=args.n_workers,
                            sampler=RandomSampler(tr_dataset))
@@ -215,23 +218,38 @@ def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
     torch.save(model.state_dict(), os.path.join(PATH_MODEL, f'{args.kernel}_final_fold_{f}.pth'))
     torch.cuda.empty_cache()   
 
-if __name__ == "__main__":  
+if __name__ == "__main__":     
 
-    lab = []
+    # PATH_ZIP = '../input/sr48power2mel260/train_img.zip'
+    PATH_ZIP = '../input/sr32power2mel384_111/train_img.zip'
+    
     tr_idx = []
     vl_idx = []
     data = np.load(PATH_ZIP)
+    df = pd.read_csv('../input/train_tp.csv')
+    df['dif_f'] = df.f_max - df.f_min
+    df['dif_f'] = df['dif_f'].astype(int)
+    df['bins'] = pd.cut(df.dif_f, 15, labels=False)
+    df['file_name'] = 'file_name'
+    
     for i in data.files[1:]:
-        sci_id = i.split('.')[1]
-        lab.append(sci_id)   
+        recording_id, species_id, idx = i.split('.')[0], i.split('.')[1], i.split('.')[2]
+        if (df.loc[int(idx), 'recording_id'] == recording_id.split('/')[1] and df.loc[int(idx), 'species_id'] == int(species_id)):
+            df.loc[int(idx),'file_name'] = i
+        else:
+            print(idx, recording_id, i)
+
+
     from sklearn.model_selection import StratifiedKFold
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
-    for f, (tr, vl) in enumerate(skf.split(data.files[1:], lab)):
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=13)
+    for f, (tr, vl) in enumerate(skf.split(data.files[1:], df.bins.values)):
+    # for f, (tr, vl) in enumerate(skf.split(df, df.bins.values)):
         print(len(tr), len(vl))
         tr_idx.append(tr)
-        vl_idx.append(vl)   
+        vl_idx.append(vl) 
     print('Correct !')
 
+    
     set_seed(SEED)
     args = parse_args()
     scaler = amp.GradScaler()  
@@ -241,5 +259,5 @@ if __name__ == "__main__":
     # dataset.py '../input/test_npy_224/*.npy'
 
     model = EffB3()
-    fold = 4
+    fold = 4    
     showtime(model, fold, data, tr_idx, vl_idx, scaler)
