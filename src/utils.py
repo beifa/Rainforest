@@ -111,21 +111,25 @@ def visual_train_result(log)->None:
     plt.title(title.replace('log_', ''), size = 18)
     plt.savefig(os.path.join('../logs/', f'{data}_{title}.png')) # before show
 
-class FocalLoss(nn.Module):
-    def __init__(self, gamma):
-        super().__init__()
-        self.gamma = gamma
-        
-    def forward(self, input, target):
-        if not (target.size() == input.size()):
-            raise ValueError("Target size ({}) must be the same as input size ({})"
-                             .format(target.size(), input.size()))
 
-        max_val = (-input).clamp(min=0)
-        loss = input - input * target + max_val + \
-            ((-max_val).exp() + (-input - max_val).exp()).log()
+def rand_window(data: np.array, version = None)->np.array:
+    """
+    idea we make image 10 sec size
+    after cut random by 6 sec
 
-        invprobs = F.logsigmoid(-input * (target * 2.0 - 1.0))
-        loss = (invprobs * self.gamma).exp() * loss
-        
-        return loss.mean()
+    v1 image shape 10 sec is 384*563 --> cut image 384*376  
+    v2                       260*844 --> cut image 260*563
+   
+    """
+    assert version, 'add version v1(384) or v2(260)'
+    if version == 'v1':
+        current_len = 563 # ~ 10 sec
+        cut_len = 376 # ~ 6 sec   
+    else:
+        current_len = 844
+        cut_len = 563    
+ 
+    start = np.random.randint(0, current_len - cut_len)
+    len_img = (start + cut_len) - start
+    assert len_img == cut_len, f'error len {start}, {start + cut_len}'
+    return data[:, start: start + cut_len]  
