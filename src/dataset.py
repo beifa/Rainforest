@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import torch.nn as nn
 from torch.utils.data import Dataset
-from utils import mono_to_color 
+from utils import mono_to_color, rand_window 
 
 # class RFDataset(Dataset):
 
@@ -36,9 +36,11 @@ from utils import mono_to_color
 # check work with zip
 class RFDataset(Dataset):
 
-    def __init__(self, data, path, size, transform = False):        
+    def __init__(self, data, path, version = 'v1', size = None, rand = None, transform = None):        
         self.size = size     
         self.transform = transform
+        self.rand = rand
+        self.version = version
         self.zipdata = np.load(path)
         self.data = data # list name npy,
         
@@ -46,17 +48,24 @@ class RFDataset(Dataset):
         return self.data.shape[0]
 
     def __getitem__(self, index):
-        name = self.data[index]      
-     
-        img = self.zipdata[name]  
+        name = self.data[index]        
+        if self.rand is not None:           
+            img_ori = self.zipdata[name]
+            img = rand_window(img_ori, self.version) 
+        else:
+            img = self.zipdata[name] 
+
         sci_id = name.split('.')[1]
         target = np.zeros(24)
         target[int(sci_id)] = 1
-        if self.transform is not None:
-            pass
+
         img = mono_to_color(img)       
-        if self.size is not None:
+        if self.size is not None:            
             img = cv2.resize(img, (224, self.size)) 
+
+        if self.transform is not None:
+            res = self.transform(image=img)
+            img = res['image']
             
         img = img / 255.0
         img = img.transpose(2, 0, 1).astype(np.float32)        
@@ -100,4 +109,3 @@ class RFDataset_test(Dataset):
             image = image.transpose(2, 0, 1).astype(np.float32) 
             temp.append(image)        
         return torch.tensor(temp).float(), name_file.split('.')[0]
-    
