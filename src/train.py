@@ -13,9 +13,9 @@ from tqdm import tqdm
 from sklearn.metrics import roc_auc_score, average_precision_score
 from sklearn.metrics import label_ranking_average_precision_score
 
-from model import Res50, EffB3
+from model import EBlite4, EBLite4_260, EBLite4_384
 from dataset import RFDataset
-from utils import lwlrap, visual_train_result, FocalLoss
+from utils import lwlrap, visual_train_result
 
 from torch.cuda import amp
 
@@ -167,16 +167,17 @@ def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
     # vl_dataset = RFDataset(PATH_NPY, vl_label, size = args.size)
 
 
-    tr = np.take(data.files[1:], tr_idx[f])
-    vl = np.take(data.files[1:], vl_idx[f])
+    # tr = np.take(data.files[1:], tr_idx[f])
+    # vl = np.take(data.files[1:], vl_idx[f])
 
-    # tr = np.take(data.file_name.values, tr_idx[f])
-    # vl = np.take(data.file_name.values, vl_idx[f]) 
+    tr = np.take(data.file_name.values, tr_idx[f])
+    vl = np.take(data.file_name.values, vl_idx[f]) 
 
     print(tr.shape, vl.shape)
     
-    tr_dataset = RFDataset(tr, PATH_ZIP, size = None)
-    vl_dataset = RFDataset(vl, PATH_ZIP, size = None)
+    # version v1 - 384, v2 - 260
+    tr_dataset = RFDataset(tr, PATH_ZIP, version= 'v1',size = None, rand = True)
+    vl_dataset = RFDataset(vl, PATH_ZIP, version= 'v1',size = None, rand = True)
 
     tr_loader = DataLoader(tr_dataset, batch_size=args.batch, num_workers=args.n_workers,
                            sampler=RandomSampler(tr_dataset))
@@ -194,6 +195,7 @@ def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',factor=0.9, patience=3, verbose=True)
 
     auc_max = 0
+    loss = np.inf 
     correct_max = 0    
     for ep in range(args.epoch):
         print('Epoch: ', ep + 1)
@@ -208,25 +210,35 @@ def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
         with open(os.path.join(PATH_LOGS, to_log), 'a') as file:
             file.write(log + '\n')
 
-        if auc > auc_max:
-            print(f'auc_max: {auc} --> {auc_max}, PRw: {pr}, PRmicro: {pr_m}). Saving model ...')
+        # if auc > auc_max:
+        if (lraps > auc_max) and (val_loss < loss) :
+            print(f'lraps_max: {lraps} --> {auc_max}, PRw: {pr}, PRmicro: {pr_m}). Saving model ...')
             torch.save(model.state_dict(), os.path.join(PATH_MODEL, f'{args.kernel}_best_fold_{f}.pth'))
-            auc_max = auc      
+            auc_max = lraps
+            loss = val_loss      
         
         scheduler.step(val_loss)         
     visual_train_result(to_log)   
     torch.save(model.state_dict(), os.path.join(PATH_MODEL, f'{args.kernel}_final_fold_{f}.pth'))
     torch.cuda.empty_cache()   
 
-if __name__ == "__main__":     
-
-    # PATH_ZIP = '../input/sr48power2mel260/train_img.zip'
-    PATH_ZIP = '../input/sr32power2mel384_111/train_img.zip'
-    
+if __name__ == "__main__":  
     tr_idx = []
     vl_idx = []
+    set_seed(SEED)
+    args = parse_args()
+    scaler = amp.GradScaler()     
+
+    # PATH_ZIP = '../input/sr48power2mel260/train_img.zip'
+    # PATH_ZIP = '../input/sr32power2mel384_111/train_img.zip'  
+
+    # IF USE RAND NEED CHANGE DATA data 10 sec
+    PATH_ZIP = '../input/exp_make-img-sr32power2mel384-ff111/train_img.zip'
+    # PATH_ZIP = '../input/exp_make_img_sr48power2mel260/train_img.zip'  
+
     data = np.load(PATH_ZIP)
     df = pd.read_csv('../input/train_tp.csv')
+    # bin make
     df['dif_f'] = df.f_max - df.f_min
     df['dif_f'] = df['dif_f'].astype(int)
     df['bins'] = pd.cut(df.dif_f, 15, labels=False)
@@ -239,25 +251,16 @@ if __name__ == "__main__":
         else:
             print(idx, recording_id, i)
 
-
     from sklearn.model_selection import StratifiedKFold
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=13)
-    for f, (tr, vl) in enumerate(skf.split(data.files[1:], df.bins.values)):
-    # for f, (tr, vl) in enumerate(skf.split(df, df.bins.values)):
+    # for f, (tr, vl) in enumerate(skf.split(data.files[1:], df.bins.values)): # FOR 260 !!!!!!!!!!!!!
+    for f, (tr, vl) in enumerate(skf.split(df, df.bins.values)): #  FOR 384 !!!!!!!!!!!!!!
         print(len(tr), len(vl))
         tr_idx.append(tr)
         vl_idx.append(vl) 
     print('Correct !')
-
-    
-    set_seed(SEED)
-    args = parse_args()
-    scaler = amp.GradScaler()  
-    # model = Res50()
-
-    # PATH_NPY = '../input/train_img_(380, 1126)_npy'
-    # dataset.py '../input/test_npy_224/*.npy'
-
-    model = EffB3()
-    fold = 4    
-    showtime(model, fold, data, tr_idx, vl_idx, scaler)
+    # EBlite4, EBLite4_260, EBLite4_384
+    # for i in range(5):
+    model = EBLite4_384()
+    fold = 4
+    showtime(model, fold, df, tr_idx, vl_idx, scaler) # !!!!!!!!!!! IF 384 CHANGE TO DF DATA PARAM
