@@ -9,7 +9,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader,Dataset
 
 
-from model import Res50, EffB3
+from model import EBLite4_384, EBLite4_260, EBlite4
 from dataset import RFDataset_test
 
 
@@ -96,6 +96,7 @@ def main():
 if __name__ == "__main__":
 
     args = parse_args()   
-    MODEL = EffB3
+    # EBlite4, EBLite4_260, EBLite4_384
+    MODEL = EBLite4_260
     device = torch.device('cuda')
     main()
