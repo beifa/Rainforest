@@ -15,7 +15,7 @@ from sklearn.metrics import label_ranking_average_precision_score
 
 from model import EBlite4, EBLite4_260, EBLite4_384
 from dataset import RFDataset
-from utils import lwlrap, visual_train_result
+from utils import lwlrap, visual_train_result, GradualWarmupSchedulerV2
 
 from torch.cuda import amp
 
@@ -166,18 +166,19 @@ def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
     # tr_dataset = RFDataset(PATH_NPY, tr_label, size = args.size)
     # vl_dataset = RFDataset(PATH_NPY, vl_label, size = args.size)
 
+    # 260
+    tr = np.take(data.files[1:], tr_idx[f])
+    vl = np.take(data.files[1:], vl_idx[f])
 
-    # tr = np.take(data.files[1:], tr_idx[f])
-    # vl = np.take(data.files[1:], vl_idx[f])
-
-    tr = np.take(data.file_name.values, tr_idx[f])
-    vl = np.take(data.file_name.values, vl_idx[f]) 
+    # 384
+    # tr = np.take(data.file_name.values, tr_idx[f])
+    # vl = np.take(data.file_name.values, vl_idx[f]) 
 
     print(tr.shape, vl.shape)
     
     # version v1 - 384, v2 - 260
-    tr_dataset = RFDataset(tr, PATH_ZIP, version= 'v1',size = None, rand = True)
-    vl_dataset = RFDataset(vl, PATH_ZIP, version= 'v1',size = None, rand = True)
+    tr_dataset = RFDataset(tr, PATH_ZIP, version= 'v2',size = None, rand = True)
+    vl_dataset = RFDataset(vl, PATH_ZIP, version= 'v2',size = None, rand = True)
 
     tr_loader = DataLoader(tr_dataset, batch_size=args.batch, num_workers=args.n_workers,
                            sampler=RandomSampler(tr_dataset))
@@ -189,10 +190,20 @@ def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
     pos_weights = torch.ones(24)
     pos_weights = pos_weights * 24    
     loss_f = nn.BCEWithLogitsLoss(reduction="mean", pos_weight=pos_weights).to(device)
-    # loss_f = FocalLoss()       
-    optimizer = optim.Adam(model.parameters())#, lr = 0.001, weight_decay=0.0001)
-    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.9, mode='min', patience=4, verbose=True)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',factor=0.9, patience=3, verbose=True)
+    # loss_f = FocalLoss(), bad       
+    # optimizer = optim.Adam(model.parameters())#, lr = 0.001, weight_decay=0.0001)
+    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',factor=0.9, patience=3, verbose=True)
+
+    #by optune, kaggle score 0.882
+    optimizer = optim.Adam(model.parameters(),
+                           lr = 0.001597,
+                          weight_decay = 0.000216)
+    scheduler_cosine = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 25)
+    scheduler = GradualWarmupSchedulerV2(optimizer,
+                                         multiplier=1, 
+                                         total_epoch=5,
+                                         after_scheduler=scheduler_cosine)
+
 
     auc_max = 0
     loss = np.inf 
@@ -202,6 +213,7 @@ def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
         
         train_loss, auc_train = train(model, tr_loader, loss_f, optimizer, scaler)
         val_loss, auc, lraps, score_loss, pr,pr_m, correct = val_train(model, vl_loader, loss_f)
+        scheduler.step()
 
         log = time.ctime().replace('  ', ' ').replace(' ', '_') + ',' + f'Fold:{f},Epoch:{ep},lr:{optimizer.param_groups[0]["lr"]:.7f},Auc_val:{auc:.5f},Auc_train:{auc_train:.5f},LRAPS:{lraps:.5f},lwlrap:{score_loss:.5f},train_loss:{np.mean(train_loss):.5f},val_loss:{val_loss:.5f}'
                
@@ -217,7 +229,8 @@ def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
             auc_max = lraps
             loss = val_loss      
         
-        scheduler.step(val_loss)         
+        # if use plateau
+        # scheduler.step(val_loss)         
     visual_train_result(to_log)   
     torch.save(model.state_dict(), os.path.join(PATH_MODEL, f'{args.kernel}_final_fold_{f}.pth'))
     torch.cuda.empty_cache()   
@@ -233,8 +246,8 @@ if __name__ == "__main__":
     # PATH_ZIP = '../input/sr32power2mel384_111/train_img.zip'  
 
     # IF USE RAND NEED CHANGE DATA data 10 sec
-    PATH_ZIP = '../input/exp_make-img-sr32power2mel384-ff111/train_img.zip'
-    # PATH_ZIP = '../input/exp_make_img_sr48power2mel260/train_img.zip'  
+    # PATH_ZIP = '../input/exp_make-img-sr32power2mel384-ff111/train_img.zip'
+    PATH_ZIP = '../input/exp_make_img_sr48power2mel260/train_img.zip'  
 
     data = np.load(PATH_ZIP)
     df = pd.read_csv('../input/train_tp.csv')
@@ -253,14 +266,14 @@ if __name__ == "__main__":
 
     from sklearn.model_selection import StratifiedKFold
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=13)
-    # for f, (tr, vl) in enumerate(skf.split(data.files[1:], df.bins.values)): # FOR 260 !!!!!!!!!!!!!
-    for f, (tr, vl) in enumerate(skf.split(df, df.bins.values)): #  FOR 384 !!!!!!!!!!!!!!
+    for f, (tr, vl) in enumerate(skf.split(data.files[1:], df.bins.values)): # FOR 260 !!!!!!!!!!!!!
+    # for f, (tr, vl) in enumerate(skf.split(df, df.bins.values)): #  FOR 384 !!!!!!!!!!!!!!
         print(len(tr), len(vl))
         tr_idx.append(tr)
         vl_idx.append(vl) 
     print('Correct !')
     # EBlite4, EBLite4_260, EBLite4_384
     # for i in range(5):
-    model = EBLite4_384()
+    model = EBLite4_260()
     fold = 4
-    showtime(model, fold, df, tr_idx, vl_idx, scaler) # !!!!!!!!!!! IF 384 CHANGE TO DF DATA PARAM
+    showtime(model, fold, data, tr_idx, vl_idx, scaler) # !!!!!!!!!!! IF 384 CHANGE TO (DF to --> DATA) PARAM
