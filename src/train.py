@@ -246,7 +246,7 @@ if __name__ == "__main__":
     # PATH_ZIP = '../input/sr32power2mel384_111/train_img.zip'  
 
     # IF USE RAND NEED CHANGE DATA data 10 sec
-    # PATH_ZIP = '../input/exp_make-img-sr32power2mel384-ff111/train_img.zip'
+    # PATH_ZIP = '../input/exp_make_img_sr32power2mel384_ff111/train_img.zip'
     PATH_ZIP = '../input/exp_make_img_sr48power2mel260/train_img.zip'  
 
     data = np.load(PATH_ZIP)
