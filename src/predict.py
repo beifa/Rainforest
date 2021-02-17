@@ -22,8 +22,17 @@ PATH_CSV = '../input'
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--kernel', type=str, required=True, help = 'name_model_size_epoch_typefold_scheduler_mixadd')
-    parser.add_argument('--fold_type', type=str, required=True, help = 'version fold')
-    parser.add_argument('--name_data', type=str, required=True, help = 'version data set [sr32power2mel384_111, sr48power2mel260]')
+    parser.add_argument('--fold_type', type=str, required=True, help = 'version fold')    
+    
+    """
+    sr32power2mel384_111, default 6 sec data set    
+    
+    """
+    parser.add_argument('--name_data', type=str, required=True,
+           help = '''version data set [sr32power2mel384_111,           
+                                     sr48power2mel260,
+                                     exp_make_img_sr32power2mel384_ff111,
+                                     exp_make_img_sr48power2mel260]''')
     parser.add_argument('--model_type', type=str, required=True, help = 'Model type [best, final]')
     parser.add_argument('--size', type=int, default = 128) 
     args, _ = parser.parse_known_args()
@@ -97,6 +106,6 @@ if __name__ == "__main__":
 
     args = parse_args()   
     # EBlite4, EBLite4_260, EBLite4_384
-    MODEL = EBLite4_260
+    MODEL = EBLite4_384
     device = torch.device('cuda')
     main()
