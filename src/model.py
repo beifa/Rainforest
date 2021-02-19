@@ -50,17 +50,13 @@ class EBlite4(nn.Module):
     else:
         x
     bs, _, _, _ = x.shape    
-    x = self.extract(x)     
-    # x = x.view(bs, -1)   
+    x = self.extract(x)
     x = self.myfc(x)
     return x  
 
 # modify, add layes
 
 class EBLite4_260(nn.Module):
-  """
-  score 0.852 all folds
-  """
 
   def __init__(self):
     super().__init__()
@@ -97,9 +93,6 @@ class EBLite4_260(nn.Module):
     return x 
 
 class EBLite4_384(nn.Module):
-  """
-  score random version 0.871
-  """
 
   def __init__(self):
     super().__init__()
