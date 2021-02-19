@@ -48,12 +48,13 @@ class RFDataset(Dataset):
         return self.data.shape[0]
 
     def __getitem__(self, index):
-        name = self.data[index]        
+        name = self.data[index]     
+        
         if self.rand is not None:           
-            img_ori = self.zipdata[name]
+            img_ori = self.zipdata[name]            
             img = rand_window(img_ori, self.version) 
         else:
-            img = self.zipdata[name] 
+            img = self.zipdata[name]           
 
         sci_id = name.split('.')[1]
         target = np.zeros(24)
