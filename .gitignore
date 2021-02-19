@@ -149,5 +149,5 @@ cython_debug/
 *.txt
 *.csv
 *.pth
-*.md
+# *.md
 # *.flac
