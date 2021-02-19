@@ -7,8 +7,6 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 from torch.utils.data import DataLoader,Dataset
-
-
 from model import EBLite4_384, EBLite4_260, EBlite4
 from dataset import RFDataset_test
 
@@ -22,7 +20,8 @@ PATH_CSV = '../input'
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--kernel', type=str, required=True, help = 'name_model_size_epoch_typefold_scheduler_mixadd')
-    parser.add_argument('--fold_type', type=str, required=True, help = 'version fold')    
+    parser.add_argument('--fold_type', type=str, required=True, help = 'version fold')
+    parser.add_argument('--PARAM', type=int, required=True, help = 'choice version dataset 260 or 384')    
     
     """
     sr32power2mel384_111, default 6 sec data set    
@@ -40,12 +39,7 @@ def parse_args():
 
 
 def main():
-
-    #v1
-    sub = pd.read_csv(os.path.join(PATH_CSV, 'sample_submission.csv'))
-    sub = sub.set_index('recording_id')
-    sub *= 0
-    
+   
     #v2
     sub2 = pd.read_csv(os.path.join(PATH_CSV, 'sample_submission.csv'))
     sub2 = sub2.set_index('recording_id')
@@ -75,37 +69,22 @@ def main():
             for (img, name) in bar: # name (name, )
                 img = img.to(device) 
                 for i in range(img.shape[1]):
-
-                    y_ = model(torch.unsqueeze(img[0][i], 0))   # add dimension bevos=use no banch                        
-                    
+                    y_ = model(torch.unsqueeze(img[0][i], 0))                   
                     prob2 = torch.max(nn.Sigmoid()(y_), dim=0)[0]
                     pred2  =prob2.detach().cpu().numpy()
-                    #
-                    prob = torch.max(y_, dim=0)[0]
-                    pred  =prob.detach().cpu().numpy()         
-                    
-                    sub.loc[name[0]] += pred 
+                    #  
                     sub2.loc[name[0]] += pred2    
-    # save
-    # if args.fold_type == 'gfold':
-    #     print('Correct: ', args.fold_type)        
-    #     sub = sub.reset_index()        
-    #     sub2 = sub2.reset_index()
-    # else:
-    #     sub.iloc[:, 1:] /= 5
-    #     sub = sub.reset_index()
-    #     sub2.iloc[:, 1:] /= 5
-    #     sub2 = sub2.reset_index()
-    sub = sub.reset_index()        
-    sub2 = sub2.reset_index()        
-
-    sub.to_csv(os.path.join(PATH_SUBMIT, f'sub_{args.kernel}_{args.model_type}_{args.fold_type}.csv'), index=False)
+        
+    sub2 = sub2.reset_index() 
     sub2.to_csv(os.path.join(PATH_SUBMIT, f'sub2_{args.kernel}_{args.model_type}_{args.fold_type}.csv'), index=False)
     
 if __name__ == "__main__":
 
     args = parse_args()   
     # EBlite4, EBLite4_260, EBLite4_384
-    MODEL = EBLite4_384
+    if args.PARAM == 260:
+        MODEL = EBLite4_260
+    else:
+        MODEL = EBLite4_384
     device = torch.device('cuda')
     main()
