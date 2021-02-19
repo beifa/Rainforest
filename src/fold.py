@@ -100,6 +100,8 @@ if __name__ == "__main__":
     
     tp = pd.read_csv(os.path.join(PATH_CSV, 'train_tp.csv'))
     fp = pd.read_csv(os.path.join(PATH_CSV, 'train_fp.csv'))
+    tp['mark'] = 1
+    fp['mark'] = -1
     df = pd.concat([tp, fp])
     df = df.sample(frac = 1).reset_index(drop=True)
 
@@ -122,12 +124,17 @@ if __name__ == "__main__":
     skf = StratifiedKFold(n_splits=5, shuffle=False, random_state=13)
     df['sfold'] = -1
 
-
     for fold, (t_idx, v_idx) in enumerate(skf.split(X=df, y= df.groups.values)):
         print(len(t_idx), len(v_idx))
-        df.loc[v_idx, 'sfold'] = fold  
+        df.loc[v_idx, 'sfold'] = fold 
+    
+    groups = df['recording_id'].values
+    df['gkffold'] = -1
+    for f, (tr,vl) in enumerate(gkf.split(df, df.species_id, groups)):
+        print(len(t_idx), len(v_idx))
+        df.loc[vl, 'gkffold'] = f 
 
-    df.to_csv(os.path.join(PATH_CSV, 'gfold_sfold_df.csv'), index = False)
+    df.to_csv(os.path.join(PATH_CSV, 'gfold_sfold_gkffold_df.csv'), index = False)
     
     # v3 only tp Str.Fould by target
     skf = StratifiedKFold(n_splits=5, shuffle=False, random_state=13)
@@ -140,3 +147,43 @@ if __name__ == "__main__":
         print(len(t_idx), len(v_idx))
         tp.loc[v_idx, 'fold'] = fold  
     tp.to_csv(os.path.join(PATH_CSV, 'tp_sfold.csv'), index = False)
+    
+    #--------------------
+    # groups = tp['recording_id'].values
+    # tp['gfold'] = -1
+    # for f, (tr,vl) in enumerate(gkf.split(tp, tp.species_id, groups)):
+    #     tp.loc[vl, 'gfold'] = f
+    # tp.to_csv(os.path.join(PATH_CSV, 'tp_gfold.csv'), index = False)
+
+    # label = tp[['recording_id','species_id']].copy()   
+
+    # for i in range(24):
+    #     label['s'+str(i)] = 0
+    #     label.loc[label.species_id==i,'s'+str(i)] = 1
+        
+    # label.drop('species_id', axis = 1, inplace = True)
+    # label.to_csv(os.path.join(PATH_CSV, 'label_tp.csv'), index = False)
+
+    tp = pd.read_csv(os.path.join(PATH_CSV, 'train_tp.csv'))
+    fp = pd.read_csv(os.path.join(PATH_CSV, 'train_fp.csv'))
+    fp['species_id'] = -1 
+    df = pd.concat([tp, fp])
+    df = df.sample(frac = 1).reset_index(drop=True)
+
+    df = df.set_index('recording_id').loc[tp.recording_id]
+    df = df.reset_index(drop = False)
+
+    label = df[['recording_id','species_id']].copy()    
+    for i in range(24):
+        label['s'+str(i)] = 0
+        label.loc[label.species_id==i,'s'+str(i)] = 1
+
+    groups = df['recording_id'].values
+    df['gfold'] = -1
+    for f, (tr,vl) in enumerate(gkf.split(df, df.species_id, groups)):
+        df.loc[vl, 'gfold'] = f
+    df.to_csv(os.path.join(PATH_CSV, 'tp_gfold.csv'), index = False)
+        
+    label.drop('species_id', axis = 1, inplace = True)
+    label.to_csv(os.path.join(PATH_CSV, 'label_tp.csv'), index = False)
+    print(df.shape, label.shape)
