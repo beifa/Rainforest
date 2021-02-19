@@ -39,6 +39,9 @@ def set_seed(seed=0):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--kernel', type=str, required=True, help = 'name_model_size_epoch_typefold_scheduler_mixadd')
+    parser.add_argument('--PARAM', type=int, required=True, help = 'choice version dataset 260 or 384')
+    parser.add_argument('--EXP', dest = 'EXP', action = 'store_true', help = 'choice Exp data')
+    parser.add_argument('--NO-EXP', dest = 'EXP', action = 'store_false', help = 'default data')
     parser.add_argument('--fold_type', type=str, required=True, help = 'version fold')
     parser.add_argument('--DEBUG', action='store_true')
     parser.add_argument('--epoch', type=int, default = 30)
@@ -146,39 +149,37 @@ def val_train(model, loader, loss_f):
     return val_loss, auc, lraps, score_loss, pr, pr_m, sum(correct)
 
 
-def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
+def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler, rd):
+
     start = time.ctime().replace('  ', ' ').replace(' ', '_')    
     print('Fold: ', f)
-    # tr_idx = df[args.fold_type] != f
-    # vl_idx = df[args.fold_type] == f
 
-    # if args.DEBUG:
-    #     print('DEBUG....................')
-    #     start = 'DEBUG_' + start
-    #     args.epoch = 1               
-    #     print(args)        
-    #     tr_label = label.loc[tr_idx].sample(200).reset_index(drop=True)
-    #     vl_label = label.loc[vl_idx].sample(200).reset_index(drop=True)
-    # else:
-    #     tr_label = label.loc[tr_idx].reset_index(drop=True)
-    #     vl_label = label.loc[vl_idx].reset_index(drop=True)
-    # print(tr_label.shape, vl_label.shape)
-    # tr_dataset = RFDataset(PATH_NPY, tr_label, size = args.size)
-    # vl_dataset = RFDataset(PATH_NPY, vl_label, size = args.size)
-
-    # 260
-    tr = np.take(data.files[1:], tr_idx[f])
-    vl = np.take(data.files[1:], vl_idx[f])
-
-    # 384
-    # tr = np.take(data.file_name.values, tr_idx[f])
-    # vl = np.take(data.file_name.values, vl_idx[f]) 
-
+    if args.PARAM == 260:        
+        # 260
+        tr = np.take(data.files[1:], tr_idx[f])
+        vl = np.take(data.files[1:], vl_idx[f])
+        ver = 'v2'
+    else:
+        # 384
+        tr = np.take(data.file_name.values, tr_idx[f])
+        vl = np.take(data.file_name.values, vl_idx[f]) 
+        ver = 'v1'
     print(tr.shape, vl.shape)
+
+
+    if args.DEBUG:
+        df = pd.read_csv('../input/train_tp.csv')
+        print('DEBUG....................used 384')
+        start = 'DEBUG_' + start
+        args.epoch = 1               
+        print(args)        
+        tr = np.take(df.file_name.values, tr_idx[f])
+        vl = np.take(df.file_name.values, vl_idx[f]) 
+        ver = 'v1'
     
-    # version v1 - 384, v2 - 260
-    tr_dataset = RFDataset(tr, PATH_ZIP, version= 'v2',size = None, rand = True)
-    vl_dataset = RFDataset(vl, PATH_ZIP, version= 'v2',size = None, rand = True)
+    # version v1 - 384, v2 - 260   
+    tr_dataset = RFDataset(tr, PATH_ZIP, version= ver, size = None, rand = rd)
+    vl_dataset = RFDataset(vl, PATH_ZIP, version= ver, size = None, rand = rd)
 
     tr_loader = DataLoader(tr_dataset, batch_size=args.batch, num_workers=args.n_workers,
                            sampler=RandomSampler(tr_dataset))
@@ -190,11 +191,19 @@ def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
     pos_weights = torch.ones(24)
     pos_weights = pos_weights * 24    
     loss_f = nn.BCEWithLogitsLoss(reduction="mean", pos_weight=pos_weights).to(device)
-    # loss_f = FocalLoss(), bad       
-    # optimizer = optim.Adam(model.parameters())#, lr = 0.001, weight_decay=0.0001)
-    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',factor=0.9, patience=3, verbose=True)
+    # loss_f = FocalLoss(), bad 
 
-    #by optune, kaggle score 0.882
+    # default    
+    # optimizer = optim.Adam(model.parameters())#, lr = 0.001, weight_decay=0.0001)
+    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',factor=0.9, patience=3, verbose=True)    
+    
+    """ 
+    sub2_BLite4_sr32power2mel384_notchageSize_folddata_addlayers_RAND_best_None.csv, [0.882, 0.880]
+    sub2_BLite4_sr48power2mel260_notchageSize_folddata_addlayers_RAND_best_None.csv, [0.862, 0.860]
+    """
+
+
+    #by optune, kaggle score 0.882, change seed 0.888
     optimizer = optim.Adam(model.parameters(),
                            lr = 0.001597,
                           weight_decay = 0.000216)
@@ -203,8 +212,12 @@ def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
                                          multiplier=1, 
                                          total_epoch=5,
                                          after_scheduler=scheduler_cosine)
+    """
+    sub2_BLite4_sr32power2mel384_RAND_schedulerGWS_CosineALR_best_None.csv, [0.879, 0.873]
+    sub2_BLite4_sr48power2mel260_RAND_schedulerGWS_CosineALR_best_None.csv, [0.877, 0.871]    
+    """
 
-
+    lraps_max = 0
     auc_max = 0
     loss = np.inf 
     correct_max = 0    
@@ -223,10 +236,10 @@ def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
             file.write(log + '\n')
 
         # if auc > auc_max:
-        if (lraps > auc_max) and (val_loss < loss) :
-            print(f'lraps_max: {lraps} --> {auc_max}, PRw: {pr}, PRmicro: {pr_m}). Saving model ...')
+        if (lraps > lraps_max) and (val_loss < loss) :
+            print(f'lraps_max: {lraps} --> {lraps_max}, PRw: {pr}, PRmicro: {pr_m}). Saving model ...')
             torch.save(model.state_dict(), os.path.join(PATH_MODEL, f'{args.kernel}_best_fold_{f}.pth'))
-            auc_max = lraps
+            lraps_max = lraps
             loss = val_loss      
         
         # if use plateau
@@ -236,18 +249,26 @@ def showtime(model, f: int, data, tr_idx: np.array, vl_idx: np.array, scaler):
     torch.cuda.empty_cache()   
 
 if __name__ == "__main__":  
+    from sklearn.model_selection import StratifiedKFold
     tr_idx = []
     vl_idx = []
     set_seed(SEED)
     args = parse_args()
     scaler = amp.GradScaler()     
-
-    # PATH_ZIP = '../input/sr48power2mel260/train_img.zip'
-    # PATH_ZIP = '../input/sr32power2mel384_111/train_img.zip'  
-
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
     # IF USE RAND NEED CHANGE DATA data 10 sec
-    # PATH_ZIP = '../input/exp_make_img_sr32power2mel384_ff111/train_img.zip'
-    PATH_ZIP = '../input/exp_make_img_sr48power2mel260/train_img.zip'  
+    if args.EXP:
+        rand_data = True        
+        if args.PARAM == 260:            
+            PATH_ZIP = '../input/exp_make_img_sr48power2mel260/train_img.zip' 
+        else:
+            PATH_ZIP = '../input/exp_make_img_sr32power2mel384_ff111/train_img.zip'
+    else:  
+        rand_data = None      
+        if args.PARAM == 260:            
+            PATH_ZIP = '../input/sr48power2mel260/train_img.zip'
+        else:
+            PATH_ZIP = '../input/sr32power2mel384_111/train_img.zip' 
 
     data = np.load(PATH_ZIP)
     df = pd.read_csv('../input/train_tp.csv')
@@ -264,16 +285,26 @@ if __name__ == "__main__":
         else:
             print(idx, recording_id, i)
 
-    from sklearn.model_selection import StratifiedKFold
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=13)
-    for f, (tr, vl) in enumerate(skf.split(data.files[1:], df.bins.values)): # FOR 260 !!!!!!!!!!!!!
-    # for f, (tr, vl) in enumerate(skf.split(df, df.bins.values)): #  FOR 384 !!!!!!!!!!!!!!
-        print(len(tr), len(vl))
-        tr_idx.append(tr)
-        vl_idx.append(vl) 
+    if args.PARAM == 260:
+        print('check_correct_fold 260')
+        for f, (tr, vl) in enumerate(skf.split(data.files[1:], df.bins.values)): # FOR 260 !!!!!!!!!!!!!
+            print(len(tr), len(vl))
+            tr_idx.append(tr)
+            vl_idx.append(vl)
+    else:
+        for f, (tr, vl) in enumerate(skf.split(df, df.bins.values)): #  FOR 384 !!!!!!!!!!!!!!
+            print(len(tr), len(vl))
+            tr_idx.append(tr)
+            vl_idx.append(vl)
+
     print('Correct !')
     # EBlite4, EBLite4_260, EBLite4_384
-    # for i in range(5):
-    model = EBLite4_260()
-    fold = 4
-    showtime(model, fold, data, tr_idx, vl_idx, scaler) # !!!!!!!!!!! IF 384 CHANGE TO (DF to --> DATA) PARAM
+    # for i in range(5):    
+    fold = 0
+    # !!!!!!!!!!! IF 384 CHANGE TO (DF to --> DATA) PARAM
+    if args.PARAM == 260:        
+        model = EBLite4_260()
+        showtime(model, fold, data, tr_idx, vl_idx, scaler, rand_data) 
+    else:
+        model = EBLite4_384()
+        showtime(model, fold, df, tr_idx, vl_idx, scaler, rand_data)        
